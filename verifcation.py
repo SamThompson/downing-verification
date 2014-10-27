@@ -184,10 +184,8 @@ if __name__=='__main__':
     emailing_thread.start()
     output_thread.start()
 
-    pulling_thread.join()
-    checking_thread.join()
-    emailing_thread.join()
-    output_thread.join()
-    f.close()
-        
+    csvq.join()
+    dirq.join()
+    probq.join()
+    outputq.join()
     print "done"
