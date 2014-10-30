@@ -24,7 +24,7 @@ def eliminate_duplicates(csv_file, eid_index, time_index):
             student_dict[eid]['csv_line'] = csv_line
             student_dict[eid]['datetime'] = sub_time
         else:
-            if student_dict[eid]['datetime'] > sub_time:
+            if student_dict[eid]['datetime'] < sub_time:
                 student_dict[eid]['csv_line'] = csv_line
                 student_dict[eid]['datetime'] = sub_time
 
@@ -245,5 +245,7 @@ if __name__=='__main__':
     checking_thread.join()
     emailing_thread.join()
     output_thread.join()
+
+    f.close()
 
     print "done"
