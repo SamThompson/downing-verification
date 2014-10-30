@@ -1,3 +1,4 @@
+from concurrent import futures
 import datetime 
 from email.mime.text import MIMEText
 import csv
@@ -67,9 +68,45 @@ def email(email, password, smtpServer, to, cc, subject, eid, msg):
     smtp = smtplib.SMTP(smtpServer)
     smtp.starttls()
     smtp.login(email, password)
-    smtp.sendmail(email, ['sam.thompson028@utexas.edu'] + [cc], message)
+    smtp.sendmail(email, [to] + [cc], message)
     smtp.quit()
 
+
+class SenderThread(Thread):
+
+    END = '___________END WORK EVENT'
+
+    def __init__(self, source, outq, func):
+        super(SenderThread, self).__init__()
+        self.source = source
+        self.outq = outq
+        self.func = func
+
+    def run(self):
+        for s in source:
+            out_val =  self.func(s)
+            self.outq.put(out_val)
+        self.outq.put(SenderThread.END)
+
+class SenderReceiverThread(Thread):
+
+    def __init__(self, inq, outq, func):
+        super(SenderReceiverThread, self).__init__()
+        self.inq = inq
+        self.outq = outq
+        self.func = func
+
+    def run(self):
+        run = True
+        while run:
+            in_val = self.inq.get()
+            if in_val == SenderThread.END:
+                run = False
+                self.outq.put(in_val)
+            else:
+                out_val = self.func(in_val)
+                self.outq.put(out_val)
+            in_val.task_done()
 
 if __name__=='__main__':
 
@@ -126,66 +163,87 @@ if __name__=='__main__':
         clean_csv = eliminate_duplicates(csv, csv_eid, csv_time)
 
     # put all of the clean lines into the first queue
+    END = '______________NO_MORE_LINES'
     for line in clean_csv:
         csvq.put(line)
+    csvq.put(END)
 
     # wrapper for pulling the projects
     def pull_projects():
-        while True:
+        run = True
+        while run:
             csv_line = csvq.get()
-            out_val = pull(csv_line, csv_eid, csv_url, csv_sha)
-            dirq.put(out_val)
+            if csv_line != END:
+                out_val = pull(csv_line, csv_eid, csv_url, csv_sha)
+                dirq.put(out_val)
+            else:
+                dirq.put(END)
+                run = False
             csvq.task_done()
+
 
     # wrapper for checking the projects
     def check_files():
-        while True:
+        run = True
+        while run:
             csv_line = dirq.get()
-            direct = csv_line[csv_eid]
-            message = check(files, direct)
-            if len(message) > 0:
-                probq.put((csv_line, message))
-                outputq.put((csv_line, message))
+            if csv_line != END:
+                direct = csv_line[csv_eid]
+                message = check(files, direct)
+                if len(message) > 0:
+                    probq.put((csv_line, message))
+                    outputq.put((csv_line, message))
+                else:
+                    outputq.put((csv_line, ['OK to grade']))
             else:
-                outputq.put(csv_line, ['OK to grade'])
+                run = False
+                probq.put(END)
+                outputq.put(END)
             dirq.task_done()
 
     # wrapper for emailing the projects
     def email_missing():
-        while True:
-            csv_line, message = probq.get()
-            email(email_addr, password, smtp, csv_line[csv_email], cc, subject, csv_line[csv_eid], message)
+        run = True
+        while run:
+            in_val = probq.get()
+            if in_val != END:
+                csv_line, message = in_val 
+                email(email_addr, password, smtp, csv_line[csv_email], cc, subject, csv_line[csv_eid], message)
+            else:
+                run = False
             probq.task_done()
 
     f = open('validation_results.csv', 'wb')
     def write():
-        while True:
-            csv_line, message = outputq.get()
-            output_string = csv_line[csv_eid] + ','
-            for m in message:
-                output_string += m + ';'
-            output_string += '\n'
-            f.write(output_string)
-            print output_string
+        run = True
+        while run:
+            in_val = outputq.get()
+            if in_val != END:
+                csv_line, message = in_val 
+                output_string = csv_line[csv_time] + ',' + csv_line[csv_eid] + ','
+                for m in message:
+                    output_string += m + ';'
+                output_string += ', ' + csv_line[csv_url] + ',' + csv_line[csv_sha] + '\n'
+                f.write(output_string)
+                print output_string
+            else:
+                run = False
             outputq.task_done()
 
 
-    pulling_thread = Thread(target = pull_projects)
-    pulling_thread.daemon = True
+    pulling_thread1 = Thread(target = pull_projects)
     checking_thread = Thread(target = check_files)
-    checking_thread.daemon = True
     emailing_thread = Thread(target = email_missing)
-    emailing_thread.daemon = True
     output_thread = Thread(target = write)
-    output_thread.daemon = True
 
-    pulling_thread.start()
+    pulling_thread1.start()
     checking_thread.start()
     emailing_thread.start()
     output_thread.start()
 
-    csvq.join()
-    dirq.join()
-    probq.join()
-    outputq.join()
+    pulling_thread1.join()
+    checking_thread.join()
+    emailing_thread.join()
+    output_thread.join()
+
     print "done"
