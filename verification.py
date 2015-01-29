@@ -1,4 +1,3 @@
-from concurrent import futures
 import datetime 
 from email.mime.text import MIMEText
 import csv
@@ -71,42 +70,6 @@ def email(email, password, smtpServer, to, cc, subject, eid, msg):
     smtp.sendmail(email, [to] + [cc], message)
     smtp.quit()
 
-
-class SenderThread(Thread):
-
-    END = '___________END WORK EVENT'
-
-    def __init__(self, source, outq, func):
-        super(SenderThread, self).__init__()
-        self.source = source
-        self.outq = outq
-        self.func = func
-
-    def run(self):
-        for s in source:
-            out_val =  self.func(s)
-            self.outq.put(out_val)
-        self.outq.put(SenderThread.END)
-
-class SenderReceiverThread(Thread):
-
-    def __init__(self, inq, outq, func):
-        super(SenderReceiverThread, self).__init__()
-        self.inq = inq
-        self.outq = outq
-        self.func = func
-
-    def run(self):
-        run = True
-        while run:
-            in_val = self.inq.get()
-            if in_val == SenderThread.END:
-                run = False
-                self.outq.put(in_val)
-            else:
-                out_val = self.func(in_val)
-                self.outq.put(out_val)
-            in_val.task_done()
 
 if __name__=='__main__':
 
