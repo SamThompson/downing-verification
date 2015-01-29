@@ -3,18 +3,30 @@ Command line arguments:
 Usage: verification.py [options]
 
 Options:
+
   -h, --help            show this help message and exit
+  
   -f CSV_FILE           csv file to be read
+  
   -u USER               email address
+  
   -p PASSW              email password
+  
   --smtp=SMTP           smtp server
+  
   --cc=CC               email cc's
+  
   --files=FILES         required files
+  
   --csv_time=CSV_TIME   csv time column index
+  
   --csv_eid=CSV_EID     csv eid column index
+  
   --csv_email=CSV_EMAIL
+  
                         csv email column index
   --csv_url=CSV_URL     csv url column index
+  
   --csv_sha=CSV_SHA     csv sha column index
 
 
